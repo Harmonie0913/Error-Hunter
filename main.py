@@ -13,7 +13,7 @@ class ErrorHunterApp:
         #self.window.geometry("400x300")
         self.window.title("Error Hunter")
         self.window.iconbitmap(r"C:\Users\yangx\OneDrive - KUKA AG\EH\KI.ico")
-        self.window.geometry("600x320")       
+        self.window.geometry("600x360")       
         self.create_widgets()
 
     def create_widgets(self):
@@ -42,7 +42,7 @@ class ErrorHunterApp:
         self.frame1 = tk.Frame(self.window)
         self.frame1.pack(side="top", fill="x", pady=10)        
         self.ProgName1 = tk.Label(self.frame1, text="Anleitung", font=font2, fg=color1)
-        self.ProgName2 = tk.Label(self.window, text="Train mode\nTraining neuer Modelle \nfür verschiedene Arten von Kurven ", font=font1, fg=color1)
+        self.ProgName2 = tk.Label(self.window, text="Train mode\nTraining neuer Modelle \nEntwicklung alter Modelle \nfür verschiedene Arten von Kurven ", font=font1, fg=color1)
         self.sepa = tk.Label(self.window)
         # self.separator_frame = tk.Frame(self.frame_top)
         # self.separator_frame.pack(side="top",pady=30)
@@ -54,12 +54,9 @@ class ErrorHunterApp:
         self.ProgName2.pack(side="top", anchor="w")
         self.sepa.pack(side="top",pady=10)
         self.ProgName3.pack(side="top", anchor="w")
-        
-        self.frame2 = tk.Frame(self.window,pady=5)
-        self.frame2.pack()
 
-        self.Exit_button = tk.Button(self.frame2, text="Quit", command=self.window.quit)
-        self.Exit_button.pack(side="top", anchor="w")
+        self.Exit_button = tk.Button(self.window, text="Quit", command=self.window.quit)
+        self.Exit_button.pack(side="bottom")
 
     def insert_image(self,new_size):
         image_path = r"C:\Users\yangx\OneDrive - KUKA AG\EH\KUKA_Logo.png"  # 替换为你的图片路径
