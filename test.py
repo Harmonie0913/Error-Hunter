@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import *
 from tkinter import ttk
 import torch
 import torch.nn as nn
@@ -306,6 +307,148 @@ def save_model( ):
     # 保存模型
     torch.save(trained_model.state_dict(), file_path)
     print("Model saved successfully.")
+
+
+
+def load_ai_model(kern_button,KI_text):
+    ai_model_path = filedialog.askopenfilename(title="Select AI Model", filetypes=[("Model files", "*.pth")])
+        # 检查是否选择了文件
+    if ai_model_path:
+        # 将文件路径显示在界面上，或进行其他处理
+        kern_button.configure(bg="green")
+        #print(f"Selected KI Modell: {self.ki_file_path}")
+        KI_text.delete(1.0, END)  # 清空文本框
+        KI_text.insert(END, ai_model_path)
+    return ai_model_path
+
+def entwickeln_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text, ge_text):
+    global train_loader, train_size, entwickelt_model
+
+    text.delete(1.0, tk.END)
+    ge_text.delete(1.0, tk.END)
+
+    input_size = train_size
+    num_epochs = int(epoch_entry.get())
+    learning_rate = float(rate_entry.get())
+
+    # 获取加载后的模型路径
+    ai_model_path = load_ai_model()
+    if not ai_model_path:
+        return None  # 如果未成功加载模型，则返回
+
+    class NeuralNet(nn.Module):
+        def __init__(self, input_size, hidden_size1, num_classes):
+            super(NeuralNet, self).__init__()
+            self.input_size = input_size
+            self.l1 = nn.Linear(input_size, hidden_size1) 
+            self.relu = nn.PReLU()
+            self.l2 = nn.Linear(hidden_size1, num_classes)
+
+        def forward(self, x):
+            out = self.l1(x)
+            out = self.relu(out)
+            out = self.l2(out)
+            return out
+
+    # 创建模型
+    model = NeuralNet(input_size, hidden_size1, num_classes).to(device)
+
+    # 加载模型
+    loaded_parameters = torch.load(ai_model_path)
+    model.load_state_dict(loaded_parameters)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    losses = []
+    accuracies = []
+    accs = []
+
+# 循环训练模型
+    for epoch in range(num_epochs):
+        running_correct = 0
+        running_loss = 0.0
+
+        #check the shape of the database
+
+        # for i, data in enumerate(train_loader):
+        #     print(i, data)
+
+
+        for i, data in enumerate(train_loader):
+            inputs, labels, sample_counts = data
+            
+            inputs = inputs
+            labels = labels-1
+
+            # 前向传播
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+
+            # 反向传播和优化
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            # 记录损失值
+            running_loss += loss.item()
+
+            # 计算和记录准确度
+            with torch.no_grad():
+                _, predicted = torch.max(outputs.data, 1)
+                correct = (predicted == labels).sum().item()
+                running_correct += correct
+                accuracy = running_correct / ((i + 1) * batch_size) * 100
+
+                # 更新损失曲线和准确度曲线
+                losses.append(running_loss / (i + 1))  # 添加平均损失值
+                accuracies.append(accuracy)  # 添加准确度值
+                # 清除子图内容并重新绘制曲线
+                ax_loss.clear()
+                ax_loss.plot(losses, color='blue')
+                
+                ax_loss.set_title('Training Loss')
+                ax_loss.set_xlabel('Training Steps')
+                ax_loss.set_ylabel('Loss')
+
+
+                # 刷新画布
+                canvas.draw_idle()
+                canvas.flush_events()
+
+            with torch.no_grad():
+                n_correct = 0
+                n_samples = 0
+                for i, data in enumerate(test_loader):
+                    inputs, labels, sample_counts = data
+                    labels = labels-1
+                    outputs = model(inputs)
+                    # max returns (value ,index)
+                    _, predicted = torch.max(outputs.data, 1)
+
+                    n_samples += labels.size(0)
+                    n_correct += (predicted == labels).sum().item()
+               
+                acc = 100.0 * n_correct / n_samples       
+                
+                accs.append(acc)  # 添加准确度值
+
+                ax_acc.clear()
+                ax_acc.plot(accs, color='red')
+                ax_acc.set_title('Validation Accuracy')
+                ax_acc.set_xlabel('Training Steps')
+                ax_acc.set_ylabel('Accuracy (%)')
+
+
+    ge_text.insert(tk.END,f"{acc}%")        
+    
+
+    print("Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
+    
+    entwickelt_model = model
+    
+    return     entwickelt_model
+
 
 
 # 运行Tkinter主事件循环

@@ -91,11 +91,11 @@ class ErrorHunterApp:
 
     def create_mode1_window(self):
         mode1_ui = Mode1UIManager(self.window)
-        mode1_ui.create_widgets()
+        mode1_ui.create_Training_widgets()
 
     def create_mode2_window(self):
         mode2_ui = Mode2UIManager(self.window)
-        mode2_ui.create_widgets()
+        mode2_ui.create_Automatisch_widgets()
 
 if __name__ == "__main__":
     window = tk.Tk()

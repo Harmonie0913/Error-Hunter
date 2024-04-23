@@ -14,6 +14,7 @@ from torch import nn, load, tensor, max
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from test import load_ai_model
 
 
 
@@ -43,6 +44,7 @@ class Mode2UIManager:
         self.labels = ['Gerätename', 'Progress', 'Status', 'Fehlermeldung']
         self.window.iconbitmap(r"C:\Users\yangx\OneDrive - KUKA AG\EH\KI.ico")
         self.window.geometry("600x685")
+        self.current_mode = 'Automatisch'
         #self.create_widgets()
     def insert_image(self,new_size):
         image_path = r"C:\Users\yangx\OneDrive - KUKA AG\EH\KUKA_Logo.png"  # 替换为你的图片路径
@@ -57,13 +59,20 @@ class Mode2UIManager:
         self.image_label.image = photo  # 保持对 PhotoImage 的引用
         self.image_label.grid(row=0, column=0,sticky="w",pady=9)
    
-    def create_widgets(self):
+    def create_Manuell_widgets(self):
         self.window.title("Test Mode")
         #self.window.geometry("700x800")
+        self.current_mode = 'Manuell'
+        menubar = tk.Menu(self.window)
+        mode_menu = tk.Menu(menubar, tearoff=0)
+        mode_menu.add_command(label="Automatisch", command=self.create_Automatisch_window)
+        mode_menu.add_command(label="Manuell", command=self.create_Manuell_window)
+        menubar.add_cascade(label="Select Funktion", menu=mode_menu)
+        self.window.config(menu=menubar)
+        
         # 插入图像
         new_size = (140, 24)
         self.insert_image(new_size)
-
         text = "Test Mode"
         font = ('times', 15, 'bold')
         color = "red"
@@ -112,13 +121,12 @@ class Mode2UIManager:
 
 
         # 新增 on_generate_button_click 函数
-        self.Kern_button = Button(self.window, text="Select KI Modell", command=lambda: self.on_Kern_button_click(self.Kern_button))
+        self.Kern_button = Button(self.window, text="Select KI Modell", command=lambda: load_ai_model(self.Kern_button,self.KI_text))
         self.Kern_button.grid(row=2, column=3,pady=9,sticky=E)
 
 
         self.KI_text = Text(self.window, height=2, width=50, wrap=WORD)
         self.KI_text.grid(row=2, column=0, pady=9, columnspan=3,sticky=W)
-
 
 
         # 新增 on_generate_button_click 函数
@@ -144,43 +152,101 @@ class Mode2UIManager:
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.grid(row=8, column=0,columnspan=5,pady=2)
-    
-    # def destroy_widgets(self):
-    #     self.image_label.grid_forget()
-    #     self.ProgName.grid_forget()
-    #     self.generate_button1.grid_forget()
-    #     self.generate_button2.grid_forget()
-    #     self.Kern_button.grid_forget()
-    #     self.Exit_button.grid_forget()
-    #     self.KI_text.grid_forget()
-    #     self.text_Field.grid_forget()
-    #     self.canvas_widget.grid_forget()
-    #     self.sample_number_entry.grid_forget()
-    #     self.sample_number_label.grid_forget()
-    #     for label in self.label_widgets:
-    #         label.grid_forget()
-    #     self.status_labels[self.motor].grid_forget()
-    #     self.error_labels[self.motor].grid_forget()
-    #     self.motor_label.grid_forget()
 
-    #     if hasattr(self, 'progress_bars') and self.motor in self.progress_bars:
-    #         self.progress_bars[self.motor].grid_forget()
+
+    def create_Automatisch_widgets(self):
+        self.window.title("Test Mode")
+        #self.window.geometry("700x800")
+        self.current_mode = 'Automatisch'
+        menubar = tk.Menu(self.window)
+        mode_menu = tk.Menu(menubar, tearoff=0)
+        mode_menu.add_command(label="Automatisch", command=self.create_Automatisch_window)
+        mode_menu.add_command(label="Manuell", command=self.create_Manuell_window)
+        menubar.add_cascade(label="Select Funktion", menu=mode_menu)
+        self.window.config(menu=menubar)
+        
+        # 插入图像
+        new_size = (140, 24)
+        self.insert_image(new_size)
+        text = "Test Mode"
+        font = ('times', 15, 'bold')
+        color = "red"
+        self.ProgName = tk.Label(self.window, text=text, font=font, fg=color)
+        self.ProgName.grid(row=0, column=0, columnspan=5,pady=9,sticky="E")
 
         
+        # 表头
+        self.label_widgets = []
+        
+        for col, label_text in enumerate(self.labels, start=0):
+            label = tk.Label(self.window, text=label_text, relief=tk.RIDGE, width=15)
+            label.grid(row=4, column=col)
+            self.label_widgets.append(label)
+                
+        # 数据初始化
+        self.motor = 'Ventil1'
+        self.progress_values = {self.motor: 0}
+        self.status_values = {self.motor: 'No Test'}
+        self.error_values = {self.motor: ''}
+
+        # 创建进度条、状态和错误消息的字典
+        self.status_labels = {}
+        self.error_labels = {}
+
+        # 填充表格数据
+        self.row = 5
+        self.motor_label = tk.Label(self.window, text=self.motor)
+        self.motor_label.grid(row=self.row, column=0)
+
+        # 状态
+        self.status_labels[self.motor] = tk.Label(self.window, text=self.status_values[self.motor], width=15)
+        self.status_labels[self.motor].grid(row=self.row, column=2)
+
+        # 错误消息
+        self.error_labels[self.motor] = tk.Label(self.window, text=self.error_values[self.motor], width=15)
+        self.error_labels[self.motor].grid(row=self.row, column=3)
+
+        #TCP
+        self.Host_Label = tk.Label(self.window,text='SERVER HOST: ')
+        self.Host_Entry =tk.Entry(self.window,width=20)
+        self.Port_Label = tk.Label(self.window,text='SERVER PORT: ')
+        self.Port_Entry =tk.Entry(self.window,width=20)
+       
+        self.Host_Label.grid(row=1, column=0, pady=5,padx=2,sticky=W)
+        self.Host_Entry.grid(row=1, column=1, pady=5,padx=2,sticky=W)
+        self.Port_Label.grid(row=1, column=2, pady=5,padx=2,sticky=W)
+        self.Port_Entry.grid(row=1, column=3, pady=5,padx=2,sticky=W)
+
+
+        self.connect_button = tk.Button(self.window,text='Connect',command=lambda: load_ai_model(self.Kern_button,self.KI_text))
+        self.disconnect_button = tk.Button(self.window,text='Disconnect',command=lambda: load_ai_model(self.Kern_button,self.KI_text),state=tk.DISABLED)
+        self.connect_button.grid(row=2, column=1, pady=5,columnspan=2,sticky=W)
+        self.disconnect_button.grid(row=2, column=2, pady=5,columnspan=2,sticky=W)      
+       
+        #Model auswählen
+        self.Kern_button = Button(self.window, text="Select KI Modell", command=lambda: load_ai_model(self.Kern_button,self.KI_text))
+        self.Kern_button.grid(row=3, column=3,pady=9,sticky=E)
+
+
+        self.KI_text = Text(self.window, height=2, width=50, wrap=WORD)
+        self.KI_text.grid(row=3, column=0, pady=9, columnspan=3,sticky=W)
+
+
+
+        self.Exit_button = Button(self.window, text="Quit", command=self.window.quit)
+        self.Exit_button.grid(row=10, column=0, columnspan=6, pady=19)
+
+        self.fig = plt.figure(figsize=(6, 4))
+        self.fig.suptitle('Visualisierung der Testdaten')
+        self.fig.gca().set_xlabel('Zeit')
+        self.fig.gca().set_ylabel('Druck')
+        # 将绘图对象添加到Tkinter窗口中
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
+        self.canvas_widget = self.canvas.get_tk_widget()
+        self.canvas_widget.grid(row=8, column=0,columnspan=5,pady=2)
+
 
     
-    def on_Kern_button_click(self,csv_button):
-        # 获取用户选择的 KI 文件路径
-        self.ki_file_path = filedialog.askopenfilename(title="Select KI Modell", filetypes=[("Model files", "*.pth")])
-
-        # 检查是否选择了文件
-        if self.ki_file_path:
-            # 将文件路径显示在界面上，或进行其他处理
-            csv_button.configure(bg="green")
-            #print(f"Selected KI Modell: {self.ki_file_path}")
-            self.KI_text.delete(1.0, END)  # 清空文本框
-            self.KI_text.insert(END, self.ki_file_path)
-
     def classify_wine(self):
         global test_size
         try:
@@ -340,8 +406,61 @@ class Mode2UIManager:
             self.text_Field.delete(1.0, END)  # 清空文本框
             self.text_Field.insert(END, self.csv_file_path)
 
+    def destroy_Manuell_widgets(self):
+        self.image_label.grid_forget()
+        self.ProgName.grid_forget()
+        self.generate_button1.grid_forget()
+        self.generate_button2.grid_forget()
+        self.Kern_button.grid_forget()
+        self.Exit_button.grid_forget()
+        self.KI_text.grid_forget()
+        self.text_Field.grid_forget()
+        self.canvas_widget.grid_forget()
+        self.sample_number_entry.grid_forget()
+        self.sample_number_label.grid_forget()
+        for label in self.label_widgets:
+            label.grid_forget()
+        self.status_labels[self.motor].grid_forget()
+        self.error_labels[self.motor].grid_forget()
+        self.motor_label.grid_forget()
 
-# if __name__ == "__main__":
-#     window = tk.Tk()
-#     app = Mode2UIManager(window)
-#     window.mainloop()
+
+
+    def destroy_Automatisch_widgets(self):
+        self.image_label.grid_forget()
+        self.ProgName.grid_forget()
+        self.Host_Label.grid_forget()
+        self.Host_Entry.grid_forget()
+        self.Port_Label.grid_forget()
+        self.Port_Entry.grid_forget()
+        self.connect_button.grid_forget()
+        self.disconnect_button.grid_forget()
+        self.Kern_button.grid_forget()
+        self.Exit_button.grid_forget()
+        self.KI_text.grid_forget()
+        self.canvas_widget.grid_forget()
+
+        for label in self.label_widgets:
+            label.grid_forget()
+        self.status_labels[self.motor].grid_forget()
+        self.error_labels[self.motor].grid_forget()
+        self.motor_label.grid_forget()
+
+
+
+
+    def create_Automatisch_window(self):
+        if  self.current_mode == 'Manuell':
+            self.destroy_Manuell_widgets()
+            self.create_Automatisch_widgets()
+
+        else: 
+            self.current_mode = 'Automatisch' 
+
+    def create_Manuell_window(self):
+        if  self.current_mode == 'Automatisch':
+            self.destroy_Automatisch_widgets()
+            self.create_Manuell_widgets()
+
+        else: 
+            self.current_mode = 'Manuell'         
