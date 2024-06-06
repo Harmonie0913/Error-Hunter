@@ -11,15 +11,15 @@ from matplotlib.figure import Figure
 from tkinter import filedialog
 import sys
 from tkinter.scrolledtext import ScrolledText
+
 # 设备配置
 device = torch.device('cpu')
 
-# 超参数
+# hyperparameter
 
-hidden_size1 = 20
+#hidden_size1 = 20
 num_classes = 2
-
-batch_size = 4
+batch_size = 2
 
 
 def on_choose_traindata_button_click(csv_button, Trainsinfo_text):
@@ -49,7 +49,7 @@ def on_choose_traindata_button_click(csv_button, Trainsinfo_text):
         class_counts = dataset1.class_counts()
         
         # 定义一个字典来映射label到相应的名称
-        label_mapping = {1: "IO", 2: "NIO"}
+        label_mapping = {1: "IO", 0: "NIO"}
 
         # 输出映射后的名称
         for label, count in class_counts.items():
@@ -63,7 +63,7 @@ def on_choose_traindata_button_click(csv_button, Trainsinfo_text):
 
 
 def on_choose_testdata_button_click(text,csv_button):
-    global test_loader
+    global validation_loader
     
     text.delete(1.0, tk.END)
     # 获取用户选择的 CSV 文件路径
@@ -75,7 +75,7 @@ def on_choose_testdata_button_click(text,csv_button):
         csv_button.configure(bg="green")
         #print(f"Selected CSV file: {csv_file_path}")
         dataset = WineDataset(csv_file_path)
-        test_loader = torch.utils.data.DataLoader(dataset=dataset,
+        validation_loader = torch.utils.data.DataLoader(dataset=dataset,
                           batch_size=batch_size,
                           shuffle=True,
                           num_workers=0)
@@ -88,7 +88,7 @@ def on_choose_testdata_button_click(text,csv_button):
         #print("Class Counts:")
         class_counts = dataset.class_counts()
         # 定义一个字典来映射label到相应的名称
-        label_mapping = {1: "IO", 2: "NIO"}
+        label_mapping = {1: "IO", 0: "NIO"}
 
         # 输出映射后的名称
         for label, count in class_counts.items():
@@ -98,7 +98,7 @@ def on_choose_testdata_button_click(text,csv_button):
                 label_name = str(label)  # 如果label没有在映射中，则使用原始的label
             text.insert(tk.END, f"{label_name} Daten: {count} Proben\n")
     
-    return test_loader,sample_size,label,count
+    return validation_loader,sample_size,label,count
 
 class WineDataset(Dataset):
 
@@ -110,8 +110,10 @@ class WineDataset(Dataset):
 
         # here the first column is the class label, the rest are the features
         self.x_data = torch.from_numpy(xy[:, 1:]) # size [n_samples, n_features]
-        self.y_data = torch.from_numpy(xy[:, 0]).to(torch.long)
-
+        self.y_data = torch.from_numpy(xy[:, 0])
+        #self.y_data[self.y_data == 1] = 0
+        self.y_data[self.y_data == 2] = 0
+        self.y_data = self.y_data.to(torch.long)
         # Calculate and store sample sizes
         self.sample_sizes = [len(sample) for sample in self.x_data]
 
@@ -144,69 +146,91 @@ class StdoutRedirector:
         self.text_widget.insert(tk.END, msg)
         self.text_widget.see(tk.END)  # 自动滚动到文本末尾
 
+class NeuralNet(nn.Module):
+    def __init__(self, input_size,hidden_size1,hidden_size2,outsize):
+        super(NeuralNet, self).__init__()
+        hidden_size1 = 4 * input_size
+        hidden_size2 = 8 * input_size
+        self.input_size = input_size
+        outsize = 1
+        self.l1 = nn.Linear(input_size, hidden_size1) 
+        self.relu = nn.ReLU()
+        self.l2 = nn.Linear(hidden_size1,hidden_size2)
+        self.relu2 = nn.LeakyReLU()
+        self.l3 = nn.Linear(hidden_size2, outsize)
+
+    def forward(self, x):
+        out = self.l1(x)
+        out = self.relu(out)
+        out = self.l2(out)
+        out = self.relu2(out)
+        out = self.l3(out)
+        return out
+
 trained_model = None
 
 # 创建一个函数来封装训练和可视化过程
-def train_and_visualize(epoch_entry,rate_entry,ax_loss,ax_acc,canvas,text,ge_text):
-    
-    global train_loader,train_size,trained_model
-
+def train_and_visualize(epoch_entry, rate_entry,gerenze_entry, ax_loss, ax_acc, canvas, text, ge_text):
+    global trained_model
     text.delete(1.0, tk.END)
     ge_text.delete(1.0, tk.END)
-    # 初始化空列表以存储损失和准确度值
-    input_size = train_size
     
+    input_size = train_size
     num_epochs = int(epoch_entry.get())
     learning_rate = float(rate_entry.get())
-
+    Grenze = float(gerenze_entry.get())
     # 创建模型
-
     print("Training model...\n")
-    class NeuralNet(nn.Module):
-        def __init__(self, input_size, hidden_size1, num_classes):
-            super(NeuralNet, self).__init__()
-            self.input_size = input_size
-            self.l1 = nn.Linear(input_size, hidden_size1) 
-            self.relu = nn.PReLU()
-            self.l2 = nn.Linear(hidden_size1, num_classes)
+    # class NeuralNet(nn.Module):
+    #     def __init__(self, input_size):
+    #         super(NeuralNet, self).__init__()
+    hidden_size1 = 4 * input_size
+    hidden_size2 = 8 * input_size
+    outsize = 1
+            
+    #         self.l1 = nn.Linear(input_size, self.hidden_size1) 
+    #         self.relu = nn.ReLU()
+    #         self.l2 = nn.Linear(self.hidden_size1,self.hidden_size2)
+    #         self.relu2 = nn.LeakyReLU()
+    #         self.l3 = nn.Linear(self.hidden_size2, 1)
 
-        def forward(self, x):
-            out = self.l1(x)
-            out = self.relu(out)
-            out = self.l2(out)
-            return out
+    #     def forward(self, x):
+    #         out = self.l1(x)
+    #         out = self.relu(out)
+    #         out = self.l2(out)
+    #         out = self.relu2(out)
+    #         out = self.l3(out)
+    #         return out
 
-    model = NeuralNet(input_size, hidden_size1, num_classes).to(device)
+    model = NeuralNet(input_size,hidden_size1,hidden_size2,outsize).to(device)
 
     # 损失函数和优化器
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
     
     # 在循环之外定义损失和准确度列表
-
-    losses = []
-    accuracies = []
-    accs = []
-    #trained_model = train_and_visualize()
-# 循环训练模型
+    train_losses = []
+    train_accuracies = []
+    val_losses = []
+    val_accuracies = []
+   
+    # 循环训练模型
     for epoch in range(num_epochs):
+        model.train()
         running_correct = 0
         running_loss = 0.0
-
-        #check the shape of the database
-
-        # for i, data in enumerate(train_loader):
-        #     print(i, data)
-
+        total_samples = 0
 
         for i, data in enumerate(train_loader):
-            inputs, labels, sample_counts = data
-            
-            inputs = inputs
-            labels = labels-1
+            inputs, labels, sample_sizes = data
+            inputs = inputs.to(device)
+            labels = labels.unsqueeze(1).to(device)
+            labels = labels.float()
+
 
             # 前向传播
             outputs = model(inputs)
+            
             loss = criterion(outputs, labels)
 
             # 反向传播和优化
@@ -218,73 +242,73 @@ def train_and_visualize(epoch_entry,rate_entry,ax_loss,ax_acc,canvas,text,ge_tex
             running_loss += loss.item()
 
             # 计算和记录准确度
-            with torch.no_grad():
-                _, predicted = torch.max(outputs.data, 1)
-                correct = (predicted == labels).sum().item()
-                running_correct += correct
-                accuracy = running_correct / ((i + 1) * batch_size) * 100
+            predictions = (torch.sigmoid(outputs) >= Grenze).float()  # 这里使用自定义阈值
+            correct = (predictions == labels).sum().item()
+            running_correct += correct
+            total_samples += labels.size(0)
 
-                # 更新损失曲线和准确度曲线
-                losses.append(running_loss / (i + 1))  # 添加平均损失值
-                accuracies.append(accuracy)  # 添加准确度值
-                # Print the loss value and accuracy every step
-                #print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(train_loader)}], Loss: {running_loss / (i + 1):.4f}, Accuracy: {accuracy:.2f}%')
-                # 清除子图内容并重新绘制曲线
-                ax_loss.clear()
-                ax_loss.plot(losses, color='blue')
+        train_loss = running_loss / len(train_loader)
+        train_accuracy = 100.0 * running_correct / total_samples
+
+        train_losses.append(train_loss)
+        train_accuracies.append(train_accuracy)
+
+        # 验证模型
+        model.eval()
+        val_running_correct = 0
+        val_running_loss = 0.0
+        val_total_samples = 0
+
+        with torch.no_grad():
+            for i, data in enumerate(validation_loader):
+                inputs, labels, sample_sizes = data
+                inputs = inputs.to(device)
+                labels = labels.unsqueeze(1).to(device)
+                labels = labels.float()
+                outputs = model(inputs)
                 
-                ax_loss.set_title('Training Loss')
-                ax_loss.set_xlabel('Training Steps')
-                ax_loss.set_ylabel('Loss')
+                loss = criterion(outputs, labels)
 
-                # ax_accuracy.clear()
-                # ax_accuracy.plot(accuracies, color='red')
-                # ax_accuracy.set_title('Training Accuracy')
-                # ax_accuracy.set_xlabel('Training Steps')
-                # ax_accuracy.set_ylabel('Accuracy (%)')
+                val_running_loss += loss.item()
 
-                # 刷新画布
-                canvas.draw_idle()
-                canvas.flush_events()
+                predictions = (torch.sigmoid(outputs) >= Grenze).float()
+                val_running_correct += (predictions == labels).sum().item()
+                val_total_samples += labels.size(0)
 
-            with torch.no_grad():
-                n_correct = 0
-                n_samples = 0
-                for i, data in enumerate(test_loader):
-                    inputs, labels, sample_counts = data
-                    labels = labels-1
-                    outputs = model(inputs)
-                    # max returns (value ,index)
-                    _, predicted = torch.max(outputs.data, 1)
-                    #predicted = predicted.unsqueeze(1)
-                    #labels -= 1
-                    #print(labels)
-                    #print(predicted)
+        val_loss = val_running_loss / len(validation_loader)
+        val_accuracy = 100.0 * val_running_correct / val_total_samples
 
-                    n_samples += labels.size(0)
-                    n_correct += (predicted == labels).sum().item()
-               
-                acc = 100.0 * n_correct / n_samples       
-                
-                accs.append(acc)  # 添加准确度值
+        val_losses.append(val_loss)
+        val_accuracies.append(val_accuracy)
 
-                ax_acc.clear()
-                ax_acc.plot(accs, color='red')
-                ax_acc.set_title('Validation Accuracy')
-                ax_acc.set_xlabel('Training Steps')
-                ax_acc.set_ylabel('Accuracy (%)')
-
-
-    ge_text.insert(tk.END,f"{acc}%")        
-    
-    #print(f'Die Genauigkeit des akutuellen Modell ist:{acc}%')
+        # 更新损失曲线和准确度曲线
+        ax_loss.clear()
+        ax_loss.plot(train_losses, label='Training Loss', color='blue')
+        ax_loss.plot(val_losses, label='Validation Loss', color='red')
+        ax_loss.set_title('Loss')
+        ax_loss.set_xlabel('Epochs')
+        ax_loss.set_ylabel('Loss')
+        ax_loss.legend()
         
- 
+        ax_acc.clear()
+        ax_acc.plot(train_accuracies, label='Training Accuracy', color='blue')
+        ax_acc.plot(val_accuracies, label='Validation Accuracy', color='red')
+        ax_acc.set_title('Accuracy')
+        ax_acc.set_xlabel('Epochs')
+        ax_acc.set_ylabel('Accuracy (%)')
+        ax_acc.legend()
+
+        # 刷新画布
+        canvas.draw_idle()
+        canvas.flush_events()
+
+    ge_text.insert(tk.END, f"{val_accuracy}%")        
+
     print("Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
-    
+
     trained_model = model
-    
-    return     trained_model
+
+    return trained_model
 
 
 # 定义保存模型的函数
@@ -351,7 +375,7 @@ def entwickeln_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, t
             return out
 
     # 创建模型
-    model = NeuralNet(input_size, hidden_size1, num_classes).to(device)
+    model = NeuralNet(input_size, num_classes).to(device)
 
     # 加载模型
     loaded_parameters = torch.load(ai_model_path)
@@ -376,7 +400,7 @@ def entwickeln_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, t
 
 
         for i, data in enumerate(train_loader):
-            inputs, labels, sample_counts = data
+            inputs, labels = data
             
             inputs = inputs
             labels = labels-1
@@ -419,8 +443,8 @@ def entwickeln_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, t
             with torch.no_grad():
                 n_correct = 0
                 n_samples = 0
-                for i, data in enumerate(test_loader):
-                    inputs, labels, sample_counts = data
+                for i, data in enumerate(validation_loader):
+                    inputs, labels = data
                     labels = labels-1
                     outputs = model(inputs)
                     # max returns (value ,index)
