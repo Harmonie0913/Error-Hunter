@@ -42,7 +42,7 @@ class ErrorHunterApp:
         self.frame1 = tk.Frame(self.window)
         self.frame1.pack(side="top", fill="x", pady=10)        
         self.ProgName1 = tk.Label(self.frame1, text="Anleitung", font=font2, fg=color1)
-        self.ProgName2 = tk.Label(self.window, text="Train mode\nTraining neuer Modelle \nEntwicklung alter Modelle \nfür verschiedene Arten von Kurven ", font=font1, fg=color1)
+        self.ProgName2 = tk.Label(self.window, text="Train mode\nTraining neuer Modelle  \nfür verschiedene Arten von Kurven ", font=font1, fg=color1)
         self.sepa = tk.Label(self.window)
         # self.separator_frame = tk.Frame(self.frame_top)
         # self.separator_frame.pack(side="top",pady=30)
@@ -81,12 +81,6 @@ class ErrorHunterApp:
         self.frame1.pack_forget()
         self.sepa.pack_forget()
     
-    # def change_mode(self, ui_manager_cls):
-    #     if self.current_ui_manager:
-    #         self.current_ui_manager.destroy_widgets()
-    #     if ui_manager_cls:
-    #         self.current_ui_manager = ui_manager_cls(self.window)
-    #         self.current_ui_manager.create_widgets()
 
 
     def create_mode1_window(self):

@@ -4,7 +4,7 @@ from tkinter import *
 import pandas as pd
 import numpy as np
 from PIL import Image, ImageTk
-from tkinter import ttk
+from tkinter import ttk,messagebox
 import torch.nn.functional as F
 import torch
 from tkinter import filedialog
@@ -22,28 +22,26 @@ from server import server_stop
 from server import Test_connect
 from server import data_queue
 from test import NeuralNet
-
+from Data_Preprocessor import DataPreprocessorWindow
 import server
 
 
 class MyFNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size, output_size):
         super(MyFNN, self).__init__()
-        self.l1 = nn.Linear(in_features=input_size, out_features=hidden_size)
-        self.relu = nn.PReLU()
-        self.l2 = nn.Linear(in_features=hidden_size, out_features=output_size)
+        self.l1 = nn.Linear(in_features=input_size, out_features=output_size)
 
     def forward(self, x):
         out = self.l1(x)
-        out = self.relu(out)
-        out = self.l2(out)
+
         return out
 
 # # 创建 FNN 模型实例
 # input_size = test_size  # 输入特征数量
-hidden_size = 20  # 隐藏层大小
-output_size = 2  # 输出大小
+#hidden_size = 20  # 隐藏层大小
+#output_size = 2  # 输出大小
 # model = MyFNN(input_size, hidden_size, output_size)
+
 
 class Mode2UIManager:
     def __init__(self, window):
@@ -69,7 +67,13 @@ class Mode2UIManager:
         self.image_label.config(image=photo)
         self.image_label.image = photo  # 保持对 PhotoImage 的引用
         self.image_label.grid(row=0, column=0,columnspan=2,sticky="w",pady=9)
-   
+
+    def create_Data_Preprocessor(self):
+        DataPreprocessor= DataPreprocessorWindow(self.window)
+        DataPreprocessor.create_widgets()
+        
+
+
     def create_Manuell_widgets(self):
         self.window.title("Test Mode")
         #self.window.geometry("700x800")
@@ -79,6 +83,7 @@ class Mode2UIManager:
         mode_menu.add_command(label="Automatisch", command=self.create_Automatisch_window)
         mode_menu.add_command(label="Manuell", command=self.create_Manuell_window)
         menubar.add_cascade(label="Select Funktion", menu=mode_menu)
+        menubar.add_cascade(label="Data Preprocessor", command=self.create_Data_Preprocessor)
         self.window.config(menu=menubar)
         
         # 插入图像
@@ -164,7 +169,6 @@ class Mode2UIManager:
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.grid(row=8, column=0,columnspan=5,pady=2)
 
-
     def create_Automatisch_widgets(self):
         self.window.title("Test Mode")
         #self.window.geometry("700x800")
@@ -174,6 +178,7 @@ class Mode2UIManager:
         mode_menu.add_command(label="Automatisch", command=self.create_Automatisch_window)
         mode_menu.add_command(label="Manuell", command=self.create_Manuell_window)
         menubar.add_cascade(label="Select Funktion", menu=mode_menu)
+        menubar.add_cascade(label="Data Preprocessor", command=self.create_Data_Preprocessor)
         self.window.config(menu=menubar)
         
         # 插入图像
@@ -272,10 +277,16 @@ class Mode2UIManager:
             self.stop_data_processing()
 
     def classify_TCP(self,data):
-        input_tensor = tensor(data.astype(np.float32))
+
+        preprocessor = DataPreprocessorWindow.current_preprocessor
+        if preprocessor is None:
+            messagebox.showinfo("No preprocessor has been loaded.")
+
+        input_tensor = tensor(preprocessor.process(data).astype(np.float32))
+        #input_tensor = tensor(data.astype(np.float32))
         self.ai_model_path = r"{}".format(self.KI_text.get("1.0", "end-1c"))
         
-        self.test_size = len(data)
+        self.test_size = len(input_tensor)
         hidden_size =4 *self.test_size
         hidden_size2 =8 *self.test_size
         loaded_parameters = load(self.ai_model_path)
@@ -302,13 +313,24 @@ class Mode2UIManager:
             data = pd.read_csv(self.csv_file_path)
 
             # 选择特定行的数据
-            input_data_pandas = data.iloc[self.sample_number-2, 1:].values
-            self.test_size = len(input_data_pandas)
+            #除去最后的type和number需考虑
+            input_data_pandas = data.iloc[self.sample_number-2, 1:-2].values
+            print(input_data_pandas)
+        
             
+            # 获取当前预处理器
+            preprocessor = DataPreprocessorWindow.current_preprocessor
+            if preprocessor is None:
+                messagebox.showinfo("No preprocessor has been loaded.")
+
             # 转换为 PyTorch tensor
-            input_tensor = tensor(input_data_pandas.astype(np.float32))
-             
+            #input_tensor = tensor(input_data_pandas.astype(np.float32))
+            input_tensor = tensor(preprocessor.process(input_data_pandas).astype(np.float32)) 
             
+            print(input_tensor)
+            self.test_size = len(input_tensor)
+           
+                 
             hidden_size =4 *self.test_size
             hidden_size2 =8 *self.test_size
             
@@ -404,6 +426,7 @@ class Mode2UIManager:
         self.fig.clear()
         self.fig.suptitle('Visualisierung der Testdaten')
         max_value = 1.5*np.max(input_data_pandas)  # 使用 numpy.max() 获取数据中的最大值
+        print(input_data_pandas)
         ax = self.fig.gca()
         ax.clear()  # 清空图形
         ax.set_xlabel('X')

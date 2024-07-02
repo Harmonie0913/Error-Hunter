@@ -12,6 +12,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import torch.nn as nn
 from queue import Queue, Empty
+from test import NeuralNet
 # 全局变量
 TCP_file = None
 received_lines = 0
@@ -20,7 +21,8 @@ trained_model = None
 conn = None  # 全局变量
 io_count = 0
 nio_count = 0
-
+num_classes = 2
+batch_size = 2
 # 设备配置
 device = torch.device('cpu')
 
@@ -62,10 +64,6 @@ class WineDataset(Dataset):
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
 
-hidden_size1 = 20
-num_classes = 2
-
-batch_size = 4
 
 def sotieren(info_text):
     global TCP_file, data_count, train_size, train_loader, validation_loader
@@ -74,7 +72,16 @@ def sotieren(info_text):
 
     # X是特征，y是标签
     # 读取第一列到第data_count列（包括data_count），假设列名是数字字符串
-    X = df.loc[:, [str(i) for i in range(1, data_count + 1)]]
+    if data_count == 0:
+        X = df.loc[:, [str(i) for i in range(1, train_size + 1)]]
+    else:
+         X = df.loc[:, [str(i) for i in range(1, data_count + 1)]]
+    
+    #X = df[['1','Mean', 'Standard Deviation']]
+    # X = df[['1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+    #     '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
+    #     '21', '22', '23', '24', '25', 'Mean', 'Standard Deviation', 'Median']]
+
     y = df['Label']  # 标签列
 
     # 检查每个类别的样本数量
@@ -162,10 +169,6 @@ def sotieren(info_text):
 
 
 
-
-
-
-
 # 创建空的 CSV 文件
 def create_TCP_csv(info_Datensatz):
     global TCP_file,data_count,received_lines,labels_written,io_count,nio_count
@@ -219,7 +222,7 @@ def open_existing_csv(info_Datensatz, info_type, info_test):
                 io_count += 1
             elif row[0] == "2":
                 nio_count += 1
-        received_lines = received_lines-1
+        received_lines = received_lines
 
     info_Datensatz.delete("1.0", tk.END)
     info_Datensatz.insert(tk.END, f"Loaded file {file_name}\n")
@@ -355,11 +358,15 @@ def connect(connect_button, disconnect_button, host_entry, port_entry, info_Date
     server_socket.listen()
 
     info_Datensatz.delete("1.0", tk.END)
-    info_Datensatz.insert(tk.END, "Server is running. Waiting for connections...\n")
+
+    # 获取服务器实际监听的地址和端口号
+    server_address = server_socket.getsockname()
+    server_host, server_port = server_address
+
+    info_Datensatz.insert(tk.END,f"Server is listening on ({server_host},{server_port})")
 
     selector = selectors.DefaultSelector()
     selector.register(server_socket, selectors.EVENT_READ, data=None)
-
     server_running = True
 
     connect_button.config(state=tk.DISABLED)
@@ -467,142 +474,137 @@ def server_stop(server_socket, selector):
             selector.close()
 
 
-def tcp_train_and_visualize(epoch_entry,rate_entry,ax_loss,ax_acc,canvas,text,ge_text):
+def tcp_train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text, ge_text,info_text):
     global trained_model
     text.delete(1.0, tk.END)
     ge_text.delete(1.0, tk.END)
-    # 初始化空列表以存储损失和准确度值
+    
     input_size = train_size
     
-    num_epochs = int(epoch_entry.get())
+    num_epochs = int(epoch_entry.get())+1
     learning_rate = float(rate_entry.get())
+    hidden_size1 = 4 * input_size
+    hidden_size2 = 8 * input_size
+    outsize = 1
 
-    # 创建模型
+    info_text.insert(tk.END,"Training model...\n")
 
-    print("Training model...\n")
-    class NeuralNet(nn.Module):
-        def __init__(self, input_size, hidden_size1, num_classes):
-            super(NeuralNet, self).__init__()
-            self.input_size = input_size
-            self.l1 = nn.Linear(input_size, hidden_size1) 
-            self.relu = nn.PReLU()
-            self.l2 = nn.Linear(hidden_size1, num_classes)
+    model = NeuralNet(input_size, hidden_size1, hidden_size2, outsize).to(device)
 
-        def forward(self, x):
-            out = self.l1(x)
-            out = self.relu(out)
-            out = self.l2(out)
-            return out
-
-    model = NeuralNet(input_size, hidden_size1, num_classes).to(device)
-
-    # 损失函数和优化器
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
-    
-    # 在循环之外定义损失和准确度列表
 
-    losses = []
-    accuracies = []
-    accs = []
-    #trained_model = train_and_visualize()
-# 循环训练模型
+    train_losses = []
+    train_accuracies = []
+    val_losses = []
+    val_accuracies = []
+   
     for epoch in range(num_epochs):
+        model.train()
         running_correct = 0
         running_loss = 0.0
-
-        #check the shape of the database
-
-        # for i, data in enumerate(train_loader):
-        #     print(i, data)
-
+        total_samples = 0
 
         for i, data in enumerate(train_loader):
-            inputs, labels, sample_counts = data
-            
-            inputs = inputs
-            labels = labels-1
+            # inputs, labels, sample_sizes = data
+            # inputs = inputs.to(device)
+            # labels = labels-1
+            # labels = labels.unsqueeze(1).to(device).float()
 
-            # 前向传播
+            inputs, labels, sample_sizes = data
+            inputs = inputs.to(device)
+            labels = labels.unsqueeze(1).to(device)
+            labels = labels.float()
+            #print(labels)
             outputs = model(inputs)
+            #print(outputs)
             loss = criterion(outputs, labels)
-
-            # 反向传播和优化
+            #print(loss)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # 记录损失值
             running_loss += loss.item()
 
-            # 计算和记录准确度
-            with torch.no_grad():
-                _, predicted = torch.max(outputs.data, 1)
-                correct = (predicted == labels).sum().item()
-                running_correct += correct
-                accuracy = running_correct / ((i + 1) * batch_size) * 100
+            predictions = (torch.sigmoid(outputs) >= 0.5).float()
+            #print(predictions)
+            correct = (predictions == labels).sum().item()
+            running_correct += correct
+            print(running_correct)
+            total_samples += labels.size(0)
 
-                # 更新损失曲线和准确度曲线
-                losses.append(running_loss / (i + 1))  # 添加平均损失值
-                accuracies.append(accuracy)  # 添加准确度值
-                # Print the loss value and accuracy every step
-                #print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(train_loader)}], Loss: {running_loss / (i + 1):.4f}, Accuracy: {accuracy:.2f}%')
-                # 清除子图内容并重新绘制曲线
-                ax_loss.clear()
-                ax_loss.plot(losses, color='blue')
-                
-                ax_loss.set_title('Training Loss')
-                ax_loss.set_xlabel('Training Steps')
-                ax_loss.set_ylabel('Loss')
-
-                # ax_accuracy.clear()
-                # ax_accuracy.plot(accuracies, color='red')
-                # ax_accuracy.set_title('Training Accuracy')
-                # ax_accuracy.set_xlabel('Training Steps')
-                # ax_accuracy.set_ylabel('Accuracy (%)')
-
-                # 刷新画布
-                canvas.draw_idle()
-                canvas.flush_events()
-
-            with torch.no_grad():
-                n_correct = 0
-                n_samples = 0
-                for i, data in enumerate(validation_loader):
-                    inputs, labels, sample_counts = data
-                    labels = labels-1
-                    outputs = model(inputs)
-                    # max returns (value ,index)
-                    _, predicted = torch.max(outputs.data, 1)
-                    #predicted = predicted.unsqueeze(1)
-                    #labels -= 1
-                    #print(labels)
-                    #print(predicted)
-
-                    n_samples += labels.size(0)
-                    n_correct += (predicted == labels).sum().item()
-               
-                acc = 100.0 * n_correct / n_samples       
-                
-                accs.append(acc)  # 添加准确度值
-
-                ax_acc.clear()
-                ax_acc.plot(accs, color='red')
-                ax_acc.set_title('Validation Accuracy')
-                ax_acc.set_xlabel('Training Steps')
-                ax_acc.set_ylabel('Accuracy (%)')
-
-
-    ge_text.insert(tk.END,f"{accs[-1]}%")        
-    
-    #print(f'Die Genauigkeit des akutuellen Modell ist:{acc}%')
+        train_loss = running_loss / len(train_loader)
+        #print(len(train_loader))
+        train_accuracy = 100.0 * running_correct / total_samples
+        #print(total_samples)
+        train_losses.append(train_loss)
+        train_accuracies.append(train_accuracy)
         
- 
-    print("Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
-    
+
+        model.eval()
+        val_running_correct = 0
+        val_running_loss = 0.0
+        val_total_samples = 0
+
+        with torch.no_grad():
+            for i, data in enumerate(validation_loader):
+                # inputs, labels, sample_sizes = data
+                # inputs = inputs.to(device)
+                # labels = labels-1
+                # labels = labels.unsqueeze(1).to(device).float()
+                # outputs = model(inputs)
+                
+                inputs, labels, sample_sizes = data
+                inputs = inputs.to(device)
+                labels = labels.unsqueeze(1).to(device)
+                labels = labels.float()
+                outputs = model(inputs)
+
+
+
+                loss = criterion(outputs, labels)
+
+                val_running_loss += loss.item()
+
+                predictions = (torch.sigmoid(outputs) >= 0.5).float()
+                val_running_correct += (predictions == labels).sum().item()
+                val_total_samples += labels.size(0)
+
+        val_loss = val_running_loss / len(validation_loader)
+        #print(len(validation_loader))
+        val_accuracy = 100.0 * val_running_correct / val_total_samples
+        #print(val_total_samples)
+        print(val_running_correct)
+        val_losses.append(val_loss)
+        val_accuracies.append(val_accuracy)
+
+        ax_loss.clear()
+        ax_loss.plot(train_losses, label='Training Loss', color='blue')
+        ax_loss.plot(val_losses, label='Validation Loss', color='red')
+        ax_loss.set_title('Loss')
+        ax_loss.set_xlabel('Epochs')
+        ax_loss.set_ylabel('Loss')
+        ax_loss.legend()
+        
+        ax_acc.clear()
+        ax_acc.plot(train_accuracies, label='Training Accuracy', color='blue')
+        ax_acc.plot(val_accuracies, label='Validation Accuracy', color='red')
+        ax_acc.set_title('Accuracy')
+        ax_acc.set_xlabel('Epochs')
+        ax_acc.set_ylabel('Accuracy (%)')
+        ax_acc.legend()
+
+        canvas.draw_idle()
+        canvas.flush_events()
+
+    ge_text.insert(tk.END, f"{val_accuracy}%")        
+
+    info_text.insert(tk.END,"Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
+
     trained_model = model
-    
-    return     trained_model
+
+    return trained_model
+
 
 
 

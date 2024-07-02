@@ -10,8 +10,11 @@ import numpy as np
 from matplotlib.figure import Figure
 from tkinter import filedialog
 import sys
+import pandas as pd
+from sklearn.model_selection import StratifiedShuffleSplit
 from tkinter.scrolledtext import ScrolledText
-
+import os
+import csv
 # 设备配置
 device = torch.device('cpu')
 
@@ -138,13 +141,13 @@ class WineDataset(Dataset):
 
 
 
-class StdoutRedirector:
-    def __init__(self, text_widget):
-        self.text_widget = text_widget
+# class StdoutRedirector:
+#     def __init__(self, text_widget):
+#         self.text_widget = text_widget
 
-    def write(self, msg):
-        self.text_widget.insert(tk.END, msg)
-        self.text_widget.see(tk.END)  # 自动滚动到文本末尾
+#     def write(self, msg):
+#         self.text_widget.insert(tk.END, msg)
+#         self.text_widget.see(tk.END)  # 自动滚动到文本末尾
 
 class NeuralNet(nn.Module):
     def __init__(self, input_size,hidden_size1,hidden_size2,outsize):
@@ -170,7 +173,7 @@ class NeuralNet(nn.Module):
 trained_model = None
 
 # 创建一个函数来封装训练和可视化过程
-def train_and_visualize(epoch_entry, rate_entry,gerenze_entry, ax_loss, ax_acc, canvas, text, ge_text):
+def train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text, ge_text):
     global trained_model
     text.delete(1.0, tk.END)
     ge_text.delete(1.0, tk.END)
@@ -178,9 +181,9 @@ def train_and_visualize(epoch_entry, rate_entry,gerenze_entry, ax_loss, ax_acc, 
     input_size = train_size
     num_epochs = int(epoch_entry.get())
     learning_rate = float(rate_entry.get())
-    Grenze = float(gerenze_entry.get())
+   # Grenze = float(gerenze_entry.get())
     # 创建模型
-    print("Training model...\n")
+    text.insert(tk.END,"Training model...\n")
     # class NeuralNet(nn.Module):
     #     def __init__(self, input_size):
     #         super(NeuralNet, self).__init__()
@@ -242,7 +245,8 @@ def train_and_visualize(epoch_entry, rate_entry,gerenze_entry, ax_loss, ax_acc, 
             running_loss += loss.item()
 
             # 计算和记录准确度
-            predictions = (torch.sigmoid(outputs) >= Grenze).float()  # 这里使用自定义阈值
+            #nn.BCEWithLogitsLoss() 内部会自动应用 sigmoid 函数
+            predictions = (torch.sigmoid(outputs) >= 0.5).float()  # 这里使用自定义阈值
             correct = (predictions == labels).sum().item()
             running_correct += correct
             total_samples += labels.size(0)
@@ -271,7 +275,7 @@ def train_and_visualize(epoch_entry, rate_entry,gerenze_entry, ax_loss, ax_acc, 
 
                 val_running_loss += loss.item()
 
-                predictions = (torch.sigmoid(outputs) >= Grenze).float()
+                predictions = (torch.sigmoid(outputs) >= 0.5).float()
                 val_running_correct += (predictions == labels).sum().item()
                 val_total_samples += labels.size(0)
 
@@ -304,7 +308,7 @@ def train_and_visualize(epoch_entry, rate_entry,gerenze_entry, ax_loss, ax_acc, 
 
     ge_text.insert(tk.END, f"{val_accuracy}%")        
 
-    print("Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
+    text.insert(tk.END,"Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
 
     trained_model = model
 
@@ -345,133 +349,105 @@ def load_ai_model(kern_button,KI_text):
         KI_text.insert(END, ai_model_path)
     return ai_model_path
 
-def entwickeln_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text, ge_text):
-    global train_loader, train_size, entwickelt_model
-
-    text.delete(1.0, tk.END)
-    ge_text.delete(1.0, tk.END)
-
-    input_size = train_size
-    num_epochs = int(epoch_entry.get())
-    learning_rate = float(rate_entry.get())
-
-    # 获取加载后的模型路径
-    ai_model_path = load_ai_model()
-    if not ai_model_path:
-        return None  # 如果未成功加载模型，则返回
-
-    class NeuralNet(nn.Module):
-        def __init__(self, input_size, hidden_size1, num_classes):
-            super(NeuralNet, self).__init__()
-            self.input_size = input_size
-            self.l1 = nn.Linear(input_size, hidden_size1) 
-            self.relu = nn.PReLU()
-            self.l2 = nn.Linear(hidden_size1, num_classes)
-
-        def forward(self, x):
-            out = self.l1(x)
-            out = self.relu(out)
-            out = self.l2(out)
-            return out
-
-    # 创建模型
-    model = NeuralNet(input_size, num_classes).to(device)
-
-    # 加载模型
-    loaded_parameters = torch.load(ai_model_path)
-    model.load_state_dict(loaded_parameters)
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-    losses = []
-    accuracies = []
-    accs = []
-
-# 循环训练模型
-    for epoch in range(num_epochs):
-        running_correct = 0
-        running_loss = 0.0
-
-        #check the shape of the database
-
-        # for i, data in enumerate(train_loader):
-        #     print(i, data)
 
 
-        for i, data in enumerate(train_loader):
-            inputs, labels = data
-            
-            inputs = inputs
-            labels = labels-1
+def manuell_sotieren(info_text):
+    global  train_size, train_loader, validation_loader
+    
+    csv_file_path = filedialog.askopenfilename(title="Select Testdata", filetypes=[("CSV Files", "*.csv")])
 
-            # 前向传播
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
+    df = pd.read_csv(csv_file_path)  # 读取 CSV 文件
 
-            # 反向传播和优化
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            # 记录损失值
-            running_loss += loss.item()
-
-            # 计算和记录准确度
-            with torch.no_grad():
-                _, predicted = torch.max(outputs.data, 1)
-                correct = (predicted == labels).sum().item()
-                running_correct += correct
-                accuracy = running_correct / ((i + 1) * batch_size) * 100
-
-                # 更新损失曲线和准确度曲线
-                losses.append(running_loss / (i + 1))  # 添加平均损失值
-                accuracies.append(accuracy)  # 添加准确度值
-                # 清除子图内容并重新绘制曲线
-                ax_loss.clear()
-                ax_loss.plot(losses, color='blue')
-                
-                ax_loss.set_title('Training Loss')
-                ax_loss.set_xlabel('Training Steps')
-                ax_loss.set_ylabel('Loss')
-
-
-                # 刷新画布
-                canvas.draw_idle()
-                canvas.flush_events()
-
-            with torch.no_grad():
-                n_correct = 0
-                n_samples = 0
-                for i, data in enumerate(validation_loader):
-                    inputs, labels = data
-                    labels = labels-1
-                    outputs = model(inputs)
-                    # max returns (value ,index)
-                    _, predicted = torch.max(outputs.data, 1)
-
-                    n_samples += labels.size(0)
-                    n_correct += (predicted == labels).sum().item()
-               
-                acc = 100.0 * n_correct / n_samples       
-                
-                accs.append(acc)  # 添加准确度值
-
-                ax_acc.clear()
-                ax_acc.plot(accs, color='red')
-                ax_acc.set_title('Validation Accuracy')
-                ax_acc.set_xlabel('Training Steps')
-                ax_acc.set_ylabel('Accuracy (%)')
-
-
-    ge_text.insert(tk.END,f"{acc}%")        
+    # X是特征，y是标签
+    # 读取第一列到第data_count列（包括data_count），假设列名是数字字符串
+     
+    X = df.loc[:, [str(i) for i in range(1, train_size + 1)]]
     
 
-    print("Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
+    y = df['Label']  # 标签列
+
+    # 检查每个类别的样本数量
+    class_counts = y.value_counts()
+    for cls, count in class_counts.items():
+        if count < 2:
+            info_text.insert(tk.END, f"类别 {cls} 的样本数量不足，只有 {count} 个样本。\n")
+            # 可以选择移除该类别或者进行其他处理，例如过采样
+            y = y[y != cls]
+            X = X[y.index]
     
-    entwickelt_model = model
-    
-    return     entwickelt_model
+    # 重新检查每个类别的样本数量
+    class_counts = y.value_counts()
+    for cls, count in class_counts.items():
+        if count < 2:
+            info_text.insert(tk.END, f"类别 {cls} 仍然样本数量不足，请检查数据。\n")
+            return
+
+    # 使用StratifiedShuffleSplit进行分层抽样
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=41)
+
+    for train_index, validation_index in sss.split(X, y):
+        X_train, X_validation = X.iloc[train_index], X.iloc[validation_index]
+        y_train, y_validation = y.iloc[train_index], y.iloc[validation_index]
+
+    # 合并训练集和测试集
+    train_data = pd.concat([y_train, X_train], axis=1)
+    validation_data = pd.concat([y_validation, X_validation], axis=1)
+
+    # 获取TCP文件所在的文件夹路径
+    folder_path = os.path.dirname(csv_file_path)
+
+    # 新文件的路径
+    validation_file = os.path.join(folder_path, os.path.splitext(os.path.basename(csv_file_path))[0] + "_validation.csv")
+    train_file = os.path.join(folder_path, os.path.splitext(os.path.basename(csv_file_path))[0] + "_train.csv")
+
+    # 保存为新的CSV文件
+    train_data.to_csv(train_file, index=False, quoting=csv.QUOTE_NONE)
+    validation_data.to_csv(validation_file, index=False, quoting=csv.QUOTE_NONE)
+
+    # 加载数据集
+    dataset1 = WineDataset(train_file)
+    train_loader = torch.utils.data.DataLoader(dataset=dataset1,
+                                               batch_size=batch_size,
+                                               shuffle=True,
+                                               num_workers=0)
+
+    _, _, train_size = WineDataset.__getitem__(dataset1, 1)
+
+    dataset2 = WineDataset(validation_file)
+    validation_loader = torch.utils.data.DataLoader(dataset=dataset2,
+                                                    batch_size=batch_size,
+                                                    shuffle=True,
+                                                    num_workers=0)
+
+    _, _, validation_size = WineDataset.__getitem__(dataset2, 1)
+
+    #info_text.insert(tk.END, f"{validation_size} Merkmale\n")
+    # Print class counts
+    #print("Class Counts:")
+    class_count1 = dataset1.class_counts()
+    class_count2 = dataset2.class_counts()
+
+    # 定义一个字典来映射label到相应的名称
+    label_mapping = {1: "IO", 2: "NIO"}
+
+    # 输出映射后的名称
+    info_text.insert(tk.END, f"Trainingsdatensatz\n")
+    for label, count in class_count1.items():
+        if label in label_mapping:
+            label_name = label_mapping[label]
+        else:
+            label_name = str(label)  # 如果label没有在映射中，则使用原始的label
+        info_text.insert(tk.END, f"{label_name} Daten: {count} Proben\n")
+
+    info_text.insert(tk.END, f"Validierungsdatensatz\n")
+    for label, count in class_count2.items():
+        if label in label_mapping:
+            label_name = label_mapping[label]
+        else:
+            label_name = str(label)  # 如果label没有在映射中，则使用原始的label
+        info_text.insert(tk.END, f"{label_name} Daten: {count} Proben\n")
+
+    return train_loader, train_size, validation_loader, validation_size
 
 
 
@@ -586,9 +562,9 @@ def main():
     text = tk.Text(frame5, height=10, width=20,state='normal',wrap='word')
     text.pack(side='top')
 
-    #创建输出重定向器并重定向标准输出流
-    stdout_redirector = StdoutRedirector(text)
-    sys.stdout = stdout_redirector
+    # #创建输出重定向器并重定向标准输出流
+    # stdout_redirector = StdoutRedirector(text)
+    # sys.stdout = stdout_redirector
 
 
 
