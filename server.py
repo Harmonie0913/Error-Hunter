@@ -8,10 +8,12 @@ import tkinter as tk
 from tkinter import filedialog
 import os
 import  torch
-from torch.utils.data import Dataset
+from test import WineDataset
 import numpy as np
 import torch.nn as nn
 from queue import Queue, Empty
+import pandas as pd
+from sklearn.model_selection import StratifiedShuffleSplit
 from test import NeuralNet
 # 全局变量
 TCP_file = None
@@ -22,51 +24,15 @@ conn = None  # 全局变量
 io_count = 0
 nio_count = 0
 num_classes = 2
-batch_size = 2
+#batch_size = 2
 # 设备配置
 device = torch.device('cpu')
 
-class WineDataset(Dataset):
 
-    def __init__(self,csv_file_path):
-        # Initialize data, download, etc.
-        # read with numpy or pandas
-        xy = np.loadtxt(csv_file_path, delimiter=',', dtype=np.float32, skiprows=1) 
-        self.n_samples = xy.shape[0]
-
-        # here the first column is the class label, the rest are the features
-        self.x_data = torch.from_numpy(xy[:, 1:]) # size [n_samples, n_features]
-        self.y_data = torch.from_numpy(xy[:, 0]).to(torch.long)
-
-        # Calculate and store sample sizes
-        self.sample_sizes = [len(sample) for sample in self.x_data]
-
-    # support indexing such that dataset[i] can be used to get i-th sample
-    def __getitem__(self, index):
-        return self.x_data[index], self.y_data[index], self.sample_sizes[index]
-
-    # we can call len(dataset) to return the size
-    def __len__(self):
-        return self.n_samples
-    
-        # Function to get count of each class in the dataset
-    def class_counts(self):
-        class_count = {}
-        for label in self.y_data.tolist():
-            if label not in class_count:
-                class_count[label] = 1
-            else:
-                class_count[label] += 1
-        return class_count
-
-
-
-import pandas as pd
-from sklearn.model_selection import StratifiedShuffleSplit
-
-
-def sotieren(info_text):
+def sotieren(batch_entry,info_text):
     global TCP_file, data_count, train_size, train_loader, validation_loader
+    
+    batch_size = int(batch_entry.get())
 
     df = pd.read_csv(TCP_file)  # 读取 CSV 文件
 
@@ -77,10 +43,6 @@ def sotieren(info_text):
     else:
          X = df.loc[:, [str(i) for i in range(1, data_count + 1)]]
     
-    #X = df[['1','Mean', 'Standard Deviation']]
-    # X = df[['1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
-    #     '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
-    #     '21', '22', '23', '24', '25', 'Mean', 'Standard Deviation', 'Median']]
 
     y = df['Label']  # 标签列
 
@@ -88,17 +50,12 @@ def sotieren(info_text):
     class_counts = y.value_counts()
     for cls, count in class_counts.items():
         if count < 2:
-            info_text.insert(tk.END, f"类别 {cls} 的样本数量不足，只有 {count} 个样本。\n")
+            info_text.insert(tk.END, f"The category {cls} has not enough samples, only {count} samples.\n")
             # 可以选择移除该类别或者进行其他处理，例如过采样
             y = y[y != cls]
             X = X[y.index]
     
-    # 重新检查每个类别的样本数量
-    class_counts = y.value_counts()
-    for cls, count in class_counts.items():
-        if count < 2:
-            info_text.insert(tk.END, f"类别 {cls} 仍然样本数量不足，请检查数据。\n")
-            return
+
 
     # 使用StratifiedShuffleSplit进行分层抽样
     sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=41)
@@ -139,31 +96,29 @@ def sotieren(info_text):
 
     _, _, validation_size = WineDataset.__getitem__(dataset2, 1)
 
-    #info_text.insert(tk.END, f"{validation_size} Merkmale\n")
-    # Print class counts
-    #print("Class Counts:")
+
     class_count1 = dataset1.class_counts()
     class_count2 = dataset2.class_counts()
 
     # 定义一个字典来映射label到相应的名称
-    label_mapping = {1: "IO", 2: "NIO"}
+    label_mapping = {1: "IO", 0: "NIO"}
 
     # 输出映射后的名称
-    info_text.insert(tk.END, f"Trainingsdatensatz\n")
+    info_text.insert(tk.END, f"Training data set\n")
     for label, count in class_count1.items():
         if label in label_mapping:
             label_name = label_mapping[label]
         else:
             label_name = str(label)  # 如果label没有在映射中，则使用原始的label
-        info_text.insert(tk.END, f"{label_name} Daten: {count} Proben\n")
+        info_text.insert(tk.END, f"{label_name} Data: {count} samples\n")
 
-    info_text.insert(tk.END, f"Validierungsdatensatz\n")
+    info_text.insert(tk.END, f"Validation data set\n")
     for label, count in class_count2.items():
         if label in label_mapping:
             label_name = label_mapping[label]
         else:
             label_name = str(label)  # 如果label没有在映射中，则使用原始的label
-        info_text.insert(tk.END, f"{label_name} Daten: {count} Proben\n")
+        info_text.insert(tk.END, f"{label_name} Data: {count} samples\n")
 
     return train_loader, train_size, validation_loader, validation_size
 
@@ -220,16 +175,16 @@ def open_existing_csv(info_Datensatz, info_type, info_test):
             received_lines += 1
             if row[0] == "1":
                 io_count += 1
-            elif row[0] == "2":
+            elif row[0] == "0":
                 nio_count += 1
         received_lines = received_lines
 
     info_Datensatz.delete("1.0", tk.END)
     info_Datensatz.insert(tk.END, f"Loaded file {file_name}\n")
     info_Datensatz.insert(tk.END, f"Received {received_lines} curves.\n")  # 减去标签
-    info_Datensatz.insert(tk.END, f"Merkmale:{data_count}\n")
-    info_Datensatz.insert(tk.END, f"IO:{io_count} Proben\n")
-    info_Datensatz.insert(tk.END, f"NIO:{nio_count} Proben\n")
+    info_Datensatz.insert(tk.END, f"Feautures:{data_count}\n")
+    info_Datensatz.insert(tk.END, f"IO:{io_count} samples\n")
+    info_Datensatz.insert(tk.END, f"NIO:{nio_count} samples\n")
     info_type.delete("1.0", tk.END)
     info_type.insert(tk.END, last_type_no)
     info_test.delete("1.0", tk.END)
@@ -306,7 +261,7 @@ def start_server(server_socket, selector, info_Datensatz, info_type, info_test):
                     # 根据标签累加计数
                     if label == 1:
                         io_count += 1
-                    elif label == 2:
+                    elif label == 0:
                         nio_count += 1
 
                     # 检查是否已经写入了标签行，如果没有，则写入
@@ -328,9 +283,9 @@ def start_server(server_socket, selector, info_Datensatz, info_type, info_test):
                     received_lines += 1
                     info_Datensatz.delete("1.0", tk.END)
                     info_Datensatz.insert(tk.END, f"Received {received_lines} curves.\n")  # 减去标签
-                    info_Datensatz.insert(tk.END, f"Merkmale:{data_count}\n")
-                    info_Datensatz.insert(tk.END, f"IO:{io_count} Proben\n")
-                    info_Datensatz.insert(tk.END, f"NIO:{nio_count} Proben\n")
+                    info_Datensatz.insert(tk.END, f"Feautures:{data_count}\n")
+                    info_Datensatz.insert(tk.END, f"IO:{io_count} samples\n")
+                    info_Datensatz.insert(tk.END, f"NIO:{nio_count} samples\n")
 
                     # 在单独的文本框中显示 TypeNo 和 TestNo
                     info_type.delete("1.0", tk.END)
@@ -408,7 +363,7 @@ def Test_start_server(server_socket, selector, info_Datensatz):
                     data_queue.put(data_array)  # 将NumPy数组放入队列
                     data_count = len(data_array)
                     info_Datensatz.delete("1.0", tk.END)
-                    info_Datensatz.insert(tk.END, f"Merkmale:{data_count}\n")  # 无标签
+                    info_Datensatz.insert(tk.END, f"Feautures:{data_count}\n")  # 无标签
                     #conn.send(b"Hello client")
                     
                 if recv_data == None:
@@ -481,7 +436,7 @@ def tcp_train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, te
     
     input_size = train_size
     
-    num_epochs = int(epoch_entry.get())+1
+    num_epochs = int(epoch_entry.get())
     learning_rate = float(rate_entry.get())
     hidden_size1 = 4 * input_size
     hidden_size2 = 8 * input_size
@@ -506,20 +461,16 @@ def tcp_train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, te
         total_samples = 0
 
         for i, data in enumerate(train_loader):
-            # inputs, labels, sample_sizes = data
-            # inputs = inputs.to(device)
-            # labels = labels-1
-            # labels = labels.unsqueeze(1).to(device).float()
+
 
             inputs, labels, sample_sizes = data
             inputs = inputs.to(device)
             labels = labels.unsqueeze(1).to(device)
             labels = labels.float()
-            #print(labels)
+       
             outputs = model(inputs)
-            #print(outputs)
             loss = criterion(outputs, labels)
-            #print(loss)
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -527,16 +478,12 @@ def tcp_train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, te
             running_loss += loss.item()
 
             predictions = (torch.sigmoid(outputs) >= 0.5).float()
-            #print(predictions)
             correct = (predictions == labels).sum().item()
             running_correct += correct
-            print(running_correct)
             total_samples += labels.size(0)
 
         train_loss = running_loss / len(train_loader)
-        #print(len(train_loader))
         train_accuracy = 100.0 * running_correct / total_samples
-        #print(total_samples)
         train_losses.append(train_loss)
         train_accuracies.append(train_accuracy)
         
@@ -548,22 +495,14 @@ def tcp_train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, te
 
         with torch.no_grad():
             for i, data in enumerate(validation_loader):
-                # inputs, labels, sample_sizes = data
-                # inputs = inputs.to(device)
-                # labels = labels-1
-                # labels = labels.unsqueeze(1).to(device).float()
-                # outputs = model(inputs)
-                
+
                 inputs, labels, sample_sizes = data
                 inputs = inputs.to(device)
                 labels = labels.unsqueeze(1).to(device)
                 labels = labels.float()
                 outputs = model(inputs)
 
-
-
                 loss = criterion(outputs, labels)
-
                 val_running_loss += loss.item()
 
                 predictions = (torch.sigmoid(outputs) >= 0.5).float()
@@ -571,10 +510,7 @@ def tcp_train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, te
                 val_total_samples += labels.size(0)
 
         val_loss = val_running_loss / len(validation_loader)
-        #print(len(validation_loader))
         val_accuracy = 100.0 * val_running_correct / val_total_samples
-        #print(val_total_samples)
-        print(val_running_correct)
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
 
@@ -599,8 +535,7 @@ def tcp_train_and_visualize(epoch_entry, rate_entry, ax_loss, ax_acc, canvas, te
 
     ge_text.insert(tk.END, f"{val_accuracy}%")        
 
-    info_text.insert(tk.END,"Die Lernrate und die Anzahl der Trainingsrunden können gemäß Standardwerten eingestellt werden.\nWenn die Genauigkeit des Modells nicht zufriedenstellend sind, kann versucht werden, das Training mehrmals zu wiederholen oder die Lernrate zu reduzieren und die Anzahl der Trainingsrunden zu erhöhen.")
-
+    info_text.insert(tk.END,"The learning rate can be set according to default values.\nIf the accuracy of the model is not satisfactory, you can try to repeat the training several times or reduce the learning rate and increase the number of training epochs.")
     trained_model = model
 
     return trained_model

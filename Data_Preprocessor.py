@@ -3,26 +3,27 @@ from tkinter import ttk, messagebox, simpledialog, filedialog
 import numpy as np
 import json
 
+# Klasse zur Datenvorverarbeitung
 class DataPreprocessor:
     def __init__(self):
-        self.preprocessing_steps = []
+        self.preprocessing_steps = []  # Liste der Vorverarbeitungsschritte
 
     def add_step(self, operation, indices):
-        self.preprocessing_steps.append({'operation': operation, 'indices': indices})
+        self.preprocessing_steps.append({'operation': operation, 'indices': indices})  # Vorverarbeitungsschritt hinzufügen
 
     def remove_step(self, index):
         if 0 <= index < len(self.preprocessing_steps):
-            self.preprocessing_steps.pop(index)
+            self.preprocessing_steps.pop(index)  # Vorverarbeitungsschritt entfernen
 
     def move_step_up(self, index):
         if 1 <= index < len(self.preprocessing_steps):
             self.preprocessing_steps[index], self.preprocessing_steps[index-1] = \
-                self.preprocessing_steps[index-1], self.preprocessing_steps[index]
+                self.preprocessing_steps[index-1], self.preprocessing_steps[index]  # Vorverarbeitungsschritt nach oben verschieben
 
     def move_step_down(self, index):
         if 0 <= index < len(self.preprocessing_steps) - 1:
             self.preprocessing_steps[index], self.preprocessing_steps[index+1] = \
-                self.preprocessing_steps[index+1], self.preprocessing_steps[index]
+                self.preprocessing_steps[index+1], self.preprocessing_steps[index]  # Vorverarbeitungsschritt nach unten verschieben
 
     def process(self, data):
         processed_data = []
@@ -30,43 +31,43 @@ class DataPreprocessor:
             operation = step['operation']
             indices = step['indices']
             if operation == 'mean':
-                processed_data.append(np.mean(data[indices]))
+                processed_data.append(np.mean(data[indices]))  # Mittelwert berechnen
             elif operation == 'median':
-                processed_data.append(np.median(data[indices]))
+                processed_data.append(np.median(data[indices]))  # Median berechnen
             elif operation == 'std':
-                processed_data.append(np.std(data[indices]))
+                processed_data.append(np.std(data[indices]))  # Standardabweichung berechnen
             elif operation == 'ratio':
-                processed_data.append(data[indices[0]] / data[indices[1]])
+                processed_data.append(data[indices[0]] / data[indices[1]])  # Verhältnis berechnen
             else:
-                processed_data.append(data[indices[0]])
-        return np.array(processed_data)
+                processed_data.append(data[indices[0]])  # Wert hinzufügen
+        return np.array(processed_data)  # Verarbeitete Daten als Array zurückgeben
 
     def save(self, filename):
         with open(filename, 'w') as file:
-            json.dump(self.preprocessing_steps, file)
+            json.dump(self.preprocessing_steps, file)  # Vorverarbeitungsschritte speichern
 
     def load(self, filename):
         with open(filename, 'r') as file:
-            self.preprocessing_steps = json.load(file)
+            self.preprocessing_steps = json.load(file)  # Vorverarbeitungsschritte laden
         return self
 
-
+# Klasse für das Fenster der Datenvorverarbeitung
 class DataPreprocessorWindow(tk.Toplevel):
+    preprocessor = None  # Klassenattribut für den Datenvorverarbeiter
+
     def __init__(self, window):
         self.window = tk.Toplevel(window)
-        #self.window = window
         self.preprocessor = None
         self.window.iconbitmap(r"C:\Users\yangx\OneDrive - KUKA AG\EH\KI.ico")
-        #self.window.geometry("600x685")
-
-        #self.create_widgets()
 
 
     def create_widgets(self):
        
         self.window.title('Data Preprocessor Designer')
+        # Datenvorverarbeiter initialisieren
         self.preprocessor = DataPreprocessor()
-
+       
+        #Gestaltung von GUI-Elementen im Data_Preprocessor
         self.step_listbox = tk.Listbox(self.window)
         self.step_listbox.pack(fill=tk.BOTH, expand=True)
 
@@ -103,12 +104,13 @@ class DataPreprocessorWindow(tk.Toplevel):
         self.down_button = ttk.Button(self.button_frame, text='Move Down', command=self.move_down)
         self.down_button.pack(side=tk.LEFT)
 
+    
     def add_step(self, step_type):
         indices = simpledialog.askstring('Indices', 'Enter indices (comma-separated):')
         if indices:
             indices = list(map(int, indices.split(',')))
             self.preprocessor.add_step(step_type, indices)
-            self.update_step_listbox()
+            self.update_step_listbox()# Listbox aktualisieren
 
     def update_step_listbox(self):
         self.step_listbox.delete(0, tk.END)
@@ -124,13 +126,12 @@ class DataPreprocessorWindow(tk.Toplevel):
     def load_steps(self):
         file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
         if file_path:
-            self.preprocessor = DataPreprocessor().load(file_path)
-            DataPreprocessorWindow.current_preprocessor = self.preprocessor
+            self.preprocessor.load(file_path)
             self.update_step_listbox()
             messagebox.showinfo('Info', 'Preprocessing steps loaded successfully')
 
     def remove_step(self):
-        selected_index = self.step_listbox.curselection()
+        selected_index = self.step_listbox.curselection()# Ausgewählten Index erhalten
         if selected_index:
             self.preprocessor.remove_step(selected_index[0])
             self.update_step_listbox()
