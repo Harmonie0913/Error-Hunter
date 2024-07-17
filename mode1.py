@@ -237,7 +237,7 @@ class Mode1UIManager:
         self.frame_Connectbutton.pack(side="top", fill="x", pady=5)
         self.frame_Connectbutton2=tk.Frame(self.window)
         self.frame_Connectbutton2.pack(side="top", fill="x", pady=5)
-        self.connect_button = tk.Button(self.frame_Connectbutton, text="Start", command=lambda:connect(self.connect_button, self.disconnect_button, self.Host_Entry, self.Port_Entry,self.Info_Datensatz_text,self.Kurvestatus_text,self.Kurvestatus_text2))
+        self.connect_button = tk.Button(self.frame_Connectbutton, text="Start", command=lambda:connect(self.connect_button, self.disconnect_button, self.Host_Entry, self.Port_Entry,self.Info_Datensatz_text,self.Kurvestatus_text,self.Kurvestatus_text2,self.text))
         self.disconnect_button = tk.Button(self.frame_Connectbutton, text="Stop", command=lambda:disconnect(self.connect_button, self.disconnect_button,self.Info_Datensatz_text))
         
         self.connect_button.pack(side="left")

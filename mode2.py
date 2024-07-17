@@ -242,8 +242,8 @@ class Mode2UIManager:
         #Model auswählen
         self.Kern_button = Button(self.window, text="Select AI Modell", command=lambda: load_ai_model(self.Kern_button,self.KI_text))
         self.Kern_button.grid(row=3, column=0,pady=9,columnspan=1,sticky=W)
-        #Test begin
         
+        #Steuerung der Aktivierung der Fehlererkennung
         self.var = tk.IntVar()
         self.check_button = tk.Checkbutton(self.window, text="Test", variable=self.var, command=self.toggle_data_processing)
         self.check_button.grid(row=3, column=1, pady=9, columnspan=1, sticky=W)
@@ -451,10 +451,11 @@ class Mode2UIManager:
         #Aktualisierung der Wahrscheinlichkeit
         self.update_Wahrscheinlichkeit(value)
 
+    #Fehererkennung aktivieren
     def start_data_processing(self):
         self.running = True
         self.process_data()
-
+    #Fehlererkennung deaktivieren
     def stop_data_processing(self):
         self.running = False
         self.Datenifo_text.delete("1.0", tk.END)
@@ -469,12 +470,13 @@ class Mode2UIManager:
   
         if not data_queue.empty():
             data = data_queue.get()
-    # 调用 classify_TCP 函数并获取返回值
+    # Rufen die Funktion classify_TCP auf und erhalten den Rückgabewert
             inference_time, predicted_class, predicted_description, data, value = self.classify_TCP(data)
             self.Visualisierung(data)
             self.simulate_data_loading(predicted_class, inference_time)
             self.update_fehlermeldung(predicted_description)
             self.update_Wahrscheinlichkeit(value)
+            #Versucht Verarbeitungsergebnisse zurück zu senden
             try:
                 conn.send(predicted_description.encode())
                 print("Sent predicted description to client:", predicted_description)
@@ -482,26 +484,26 @@ class Mode2UIManager:
                 print("Failed to send predicted description to client:", e)            
 
         else:    
-            # 继续检查数据，每100毫秒一次
             self.Datenifo_text.delete("1.0", tk.END)
             self.Datenifo_text.insert(tk.END, "Waiting for curve...") 
 
 
     def on_choose_csv_button_click(self,csv_button):
         
-        # 获取用户选择的 CSV 文件路径
+        # Benutzerdefinierten CSV-Dateipfad abrufen
         self.csv_file_path = filedialog.askopenfilename(title="Select CSV File", filetypes=[("CSV Files", "*.csv")])
 
-        # 检查是否选择了文件
+        
         if self.csv_file_path:
-            # 将文件路径显示在界面上，或进行其他处理
+            # Der Dateipfad wird auf der Benutzeroberfläche angezeigt, und der Button wird nach Auswahl der Datei grün.
             csv_button.configure(bg="green")
-            #print(f"Selected CSV file: {self.csv_file_path}")
-            self.text_Field.delete(1.0, END)  # 清空文本框
+            self.text_Field.delete(1.0, END)  # Text löschen
             self.text_Field.insert(END, self.csv_file_path)
 
+    
+    #Alle GUI Elemente in Manuell Funktion löschen
     def destroy_Manuell_widgets(self):
-        if hasattr(self, 'progress_bars') and self.motor in self.progress_bars:
+        if hasattr(self, 'progress_bars') and self.motor in self.progress_bars:# Prüfen, ob ein Fortschrittsbalken vorhanden ist
             self.progress_bars[self.motor].grid_forget()
         self.image_label.grid_forget()
         self.ProgName.grid_forget()
@@ -522,7 +524,7 @@ class Mode2UIManager:
         self.motor_label.grid_forget()
 
 
-
+    #Alle GUI Elemente in Automatisch Funktion löschen
     def destroy_Automatisch_widgets(self):
         if hasattr(self, 'progress_bars') and self.motor in self.progress_bars:
             self.progress_bars[self.motor].grid_forget()
@@ -549,9 +551,7 @@ class Mode2UIManager:
         self.Wahrscheinlichkeit_labels[self.motor].grid_forget()
         self.motor_label.grid_forget()
 
-
-
-
+    #Wechsel von der Automatisch Funktion auf Manuell Funktion
     def create_Automatisch_window(self):
         if  self.current_mode == 'Manuell':
             self.destroy_Manuell_widgets()
@@ -559,7 +559,7 @@ class Mode2UIManager:
 
         else: 
             self.current_mode = 'Automatisch' 
-
+    #Wechsel von der Manuell Funktion auf Automatisch Funktion
     def create_Manuell_window(self):
         if  self.current_mode == 'Automatisch':
             server_stop(self.server_socket, self.selector)

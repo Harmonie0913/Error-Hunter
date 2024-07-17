@@ -40,10 +40,6 @@ class ErrorHunterApp:
         self.ProgName = tk.Label(self.frame_top, text=text, font=font, fg=color)
         
         self.ProgName.pack(side="right", anchor="ne")
-        self.ProgName1.pack(side="top")
-        self.ProgName2.pack(side="top")
-        self.sepa.pack(side="top",pady=10)
-        self.ProgName3.pack(side="top")
          
         # Englische Anleitungen in der Mitte einfügen 
         self.frame1 = tk.Frame(self.window)
@@ -52,6 +48,11 @@ class ErrorHunterApp:
         self.ProgName2 = tk.Label(self.window, text="Training mode\nTraining new models \nfor different types of curves ", font=font1, fg=color1)
         self.sepa = tk.Label(self.window)
         self.ProgName3 = tk.Label(self.window, text="Test mode\nExecution of error detection \nby AI model", font=font1, fg=color1)
+
+        self.ProgName1.pack(side="top")
+        self.ProgName2.pack(side="top")
+        self.sepa.pack(side="top",pady=10)
+        self.ProgName3.pack(side="top")
 
         self.Exit_button = tk.Button(self.window, text="Quit", command=self.window.quit)
         self.Exit_button.pack(side="bottom")

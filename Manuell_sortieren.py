@@ -5,7 +5,7 @@ import csv
 from sklearn.model_selection import StratifiedShuffleSplit
 import torch
 import os
-from server import WineDataset
+from server import KurvenDataset
 
 class SortierenWindow(tk.Toplevel):
     def __init__(self, window):
@@ -45,7 +45,7 @@ class SortierenWindow(tk.Toplevel):
         
         if self.csv_file_path:
             self.save_csv_button.configure(bg="green") # Buttonfarbe ändern, wenn Datei ausgewählt wurde
-            dataset = WineDataset(self.csv_file_path)
+            dataset = KurvenDataset(self.csv_file_path)
             self.validation_loader = torch.utils.data.DataLoader(dataset=dataset,
                                                                  batch_size=self.batch_size,
                                                                  shuffle=True,
@@ -73,8 +73,6 @@ class SortierenWindow(tk.Toplevel):
         for cls, count in class_counts.items():
             if count < 2:
                 info_text.insert(tk.END, f"The category {cls} has not enough samples, only {count} samples.\n")
-                y = y[y != cls]
-                X = X.loc[y.index]
 
         sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=41)#Der Datensatz wird in einem Verhältnis von acht zu zwei geteilt.
         for train_index, validation_index in sss.split(X, y):
@@ -93,14 +91,14 @@ class SortierenWindow(tk.Toplevel):
         validation_data.to_csv(validation_file, index=False, quoting=csv.QUOTE_NONE)
         
          #Nur zur Anzeige von Informationen zum neuen Trainingssatz und  Validierungssatz 
-        dataset1 = WineDataset(train_file)
+        dataset1 = KurvenDataset(train_file)
         self.train_loader = torch.utils.data.DataLoader(dataset=dataset1,
                                                         batch_size=self.batch_size,
                                                         shuffle=True,
                                                         num_workers=0)
         _, _, self.train_size = dataset1.__getitem__(1)
 
-        dataset2 = WineDataset(validation_file)
+        dataset2 = KurvenDataset(validation_file)
         self.validation_loader = torch.utils.data.DataLoader(dataset=dataset2,
                                                              batch_size=self.batch_size,
                                                              shuffle=True,
@@ -109,12 +107,12 @@ class SortierenWindow(tk.Toplevel):
 
         class_count1 = dataset1.class_counts()
         class_count2 = dataset2.class_counts()
-        label_mapping = {1: "IO", 0: "NIO"}
+        label_mapping = {1: "IO", 0: "NIO"}# Definiere ein Wörterbuch, um Bezeichnungen den entsprechenden Namen zuzuordnen.
 
         info_text.insert(tk.END, f"Training data set\n")
         for label, count in class_count1.items():
-            label_name = label_mapping.get(label, str(label))
-            info_text.insert(tk.END, f"{label_name} Data: {count} samples\n")
+            label_name = label_mapping.get(label, str(label))# Ausgabe gemappter Namen
+            info_text.insert(tk.END, f"{label_name} Data: {count} samples\n")# Wenn die Bezeichnung nicht in der Zuordnung enthalten ist, wird die ursprüngliche Bezeichnung verwendet.
 
         info_text.insert(tk.END, f"Validation data set\n")
         for label, count in class_count2.items():

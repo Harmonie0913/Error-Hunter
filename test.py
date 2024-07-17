@@ -7,38 +7,41 @@ import numpy as np
 from tkinter import filedialog
 
 
-# 设备配置
+# Gerätekonfigurationen für das KI-Training
+#cuda für GPU
+#CPU für CPU
+#device = torch.device('cpu')
 device = torch.device('cuda')
 
-# hyperparameter
+# Global Variante
 trained_model = None
-num_classes = 2
-#batch_size = 2
+num_classes = 2 #Binäre Klassifikation
 
-class WineDataset(Dataset):
+
+class KurvenDataset(Dataset):
 
     def __init__(self,csv_file_path):
-        # Initialize data, download, etc.
-        # read with numpy or pandas
+        # Daten initialisieren, herunterladen, etc.
+        # Lesen mit Numpy oder Pandas
         xy = np.loadtxt(csv_file_path, delimiter=',', dtype=np.float32, skiprows=1) 
         self.n_samples = xy.shape[0]
 
-        # here the first column is the class label, the rest are the features
+        # hier ist die erste Spalte die Labels, der Rest sind die Merkmale
         self.x_data = torch.from_numpy(xy[:, 1:]) # size [n_samples, n_features]
         self.y_data = torch.from_numpy(xy[:, 0]).to(torch.long)
               
-        # Calculate and store sample sizes
+        # Berechnung der Probengrößen
         self.sample_sizes = [len(sample) for sample in self.x_data]
 
-    # support indexing such that dataset[i] can be used to get i-th sample
+     # Unterstützung des index, so dass dataset[i] verwendet werden kann, um die i-te Probe zu erhalten
     def __getitem__(self, index):
         return self.x_data[index], self.y_data[index], self.sample_sizes[index]
 
-    # we can call len(dataset) to return the size
+    # len(dataset) kann aufgerufen werden, um die Probengröße zurückzugeben
     def __len__(self):
         return self.n_samples
     
-        # Function to get count of each class in the dataset
+    # Funktion zur Ermittlung der Anzahl der einzelnen Klassen im Datensatz
     def class_counts(self):
         class_count = {}
         for label in self.y_data.tolist():
@@ -49,62 +52,62 @@ class WineDataset(Dataset):
         return class_count
 
 class NeuralNet(nn.Module):
+    #Entwerfen der Struktur des neuronalen Netzes und Erhöhung der Anzahl der Neuronen in Hidden Layer, 
+    #wenn es sich um ein komplexeres Klassifizierungsproblem handelt
     def __init__(self, input_size,hidden_size1,hidden_size2,outsize):
         super(NeuralNet, self).__init__()
-        hidden_size1 =     input_size
+        hidden_size1 = 4 * input_size
         hidden_size2 = 8 * input_size
         self.input_size = input_size
         outsize = 1
-        self.l1 = nn.Linear(input_size, outsize) 
-        # self.relu = nn.ReLU()
-        # self.l2 = nn.Linear(hidden_size1,outsize)
+        self.l1 = nn.Linear(input_size, hidden_size1) 
+        self.relu = nn.ReLU()
+        self.l2 = nn.Linear(hidden_size1,outsize)
         # self.relu2 = nn.LeakyReLU()
         # self.l3 = nn.Linear(hidden_size2, outsize)
-
+    
+    #Forward Propagation
     def forward(self, x):
         out = self.l1(x)
-        # out = self.relu(out)
-        # out = self.l2(out)
+        out = self.relu(out)
+        out = self.l2(out)
         # out = self.relu2(out)
         # out = self.l3(out)
         return out
 
 def on_choose_traindata_button_click(batch_entry, csv_button, Trainsinfo_text):
     global train_size,train_loader
-    # 获取用户选择的 CSV 文件路径
+    # Benutzerdefinierten CSV-Dateipfad abrufen
     csv_file_path = filedialog.askopenfilename(title="Select Traindata", filetypes=[("CSV Files", "*.csv")])
     batch_size = int(batch_entry.get())
-    # 检查是否选择了文件
+    
     if csv_file_path:
-        # change the color
+        # Der Dateipfad wird auf der Benutzeroberfläche angezeigt, und der Button wird nach Auswahl der Datei grün.
         csv_button.configure(bg="green")
         Trainsinfo_text.delete(1.0, tk.END) 
-        #Trainsinfo_text.insert(tk.END,f"Selected CSV file: {csv_file_path}")
         
-        dataset1 = WineDataset(csv_file_path)
+        dataset1 = KurvenDataset(csv_file_path)
         train_loader = torch.utils.data.DataLoader(dataset=dataset1,
                           batch_size=batch_size,
                           shuffle=True,
                           num_workers=0)
         
-        _,_,train_size = WineDataset.__getitem__(dataset1,1)
-        ##这里 WineDataset 是一个类，所以我们需要传递一个实例作为第一个参数。
+        _,_,train_size = KurvenDataset.__getitem__(dataset1,1)
+        #Hier ist KurvenDataset eine Klasse, also müssen wir eine Instanz als ersten Parameter übergeben.
      
-        Trainsinfo_text.insert(tk.END,f"{train_size} Merkmale\n")
-        # Print class counts
-        #print("Class Counts:")
+        Trainsinfo_text.insert(tk.END,f"{train_size} Feautures\n")
         class_counts = dataset1.class_counts()
         
-        # 定义一个字典来映射label到相应的名称
+        # Definiere ein Wörterbuch, um Bezeichnungen den entsprechenden Namen zuzuordnen.
         label_mapping = {1: "IO", 0: "NIO"}
 
-        # 输出映射后的名称
+        # Ausgabe gemappter Namen
         for label, count in class_counts.items():
             if label in label_mapping:
                 label_name = label_mapping[label]
             else:
-                label_name = str(label)  # 如果label没有在映射中，则使用原始的label
-            Trainsinfo_text.insert(tk.END, f"{label_name} Daten: {count} Proben\n")
+                label_name = str(label)  # Wenn die Bezeichnung nicht in der Zuordnung enthalten ist, wird die ursprüngliche Bezeichnung verwendet.
+            Trainsinfo_text.insert(tk.END, f"{label_name} Data: {count} samples\n")
 
     return train_loader, train_size
 
@@ -114,71 +117,64 @@ def on_choose_testdata_button_click(batch_entry,text,csv_button):
     global validation_loader
     batch_size = int(batch_entry.get())
     text.delete(1.0, tk.END)
-    # 获取用户选择的 CSV 文件路径
+    # Benutzerdefinierten CSV-Dateipfad abrufen
     csv_file_path = filedialog.askopenfilename(title="Select Testdata", filetypes=[("CSV Files", "*.csv")])
 
-    # 检查是否选择了文件
     if csv_file_path:
-        # 将文件路径显示在界面上，或进行其他处理
+        # Der Dateipfad wird auf der Benutzeroberfläche angezeigt, und der Button wird nach Auswahl der Datei grün.
         csv_button.configure(bg="green")
-        #print(f"Selected CSV file: {csv_file_path}")
-        dataset = WineDataset(csv_file_path)
+        dataset = KurvenDataset(csv_file_path)
         validation_loader = torch.utils.data.DataLoader(dataset=dataset,
                           batch_size=batch_size,
                           shuffle=True,
                           num_workers=0)
         
-        _,_,sample_size = WineDataset.__getitem__(dataset,1)
-        ##这里 WineDataset 是一个类，所以我们需要传递一个实例作为第一个参数。       
+        _,_,sample_size = KurvenDataset.__getitem__(dataset,1)
+       
         text.insert(tk.END,f"{sample_size} Merkmale\n")
-        #print(sample_size)
-        # Print class counts
-        #print("Class Counts:")
+
         class_counts = dataset.class_counts()
-        # 定义一个字典来映射label到相应的名称
         label_mapping = {1: "IO", 0: "NIO"}
 
-        # 输出映射后的名称
         for label, count in class_counts.items():
             if label in label_mapping:
                 label_name = label_mapping[label]
             else:
-                label_name = str(label)  # 如果label没有在映射中，则使用原始的label
+                label_name = str(label)  
             text.insert(tk.END, f"{label_name} Daten: {count} Proben\n")
     
     return validation_loader,sample_size,label,count
 
 
-# 创建一个函数来封装训练和可视化过程
+# Erstellen einer Funktion, die den Trainings- und Visualisierungsprozess kapselt
 def train_and_visualize( epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text, ge_text):
     global trained_model
     text.delete(1.0, tk.END)
     ge_text.delete(1.0, tk.END)
-    
+    # Benutzerdefinierten epochs und Lernrate abrufen
     input_size = train_size
     num_epochs = int(epoch_entry.get())
     learning_rate = float(rate_entry.get())
     
-    # 创建模型
     text.insert(tk.END,"Training model...\n")
 
     hidden_size1 = 4 * input_size
     hidden_size2 = 8 * input_size
     outsize = 1
-
+    #Modell anrufen
     model = NeuralNet(input_size,hidden_size1,hidden_size2,outsize).to(device)
 
-    # 损失函数和优化器
+    # BCE als Verlustfunktion, Adam als Optimeizer
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
     
-    # 在循环之外定义损失和准确度列表
+    # Verlust- und Genauigkeitslisten außerhalb der Schleife definieren
     train_losses = []
     train_accuracies = []
     val_losses = []
     val_accuracies = []
    
-    # 循环训练模型
+    # Training Loop
     for epoch in range(num_epochs):
         model.train()
         running_correct = 0
@@ -186,29 +182,30 @@ def train_and_visualize( epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text,
         total_samples = 0
 
         for i, data in enumerate(train_loader):
-            inputs, labels, sample_sizes = data
+            inputs, labels, sample_size = data
             inputs = inputs.to(device)
-            #将标签的形状从 [batch_size] 转换为 [batch_size, 1]
-            labels = labels.unsqueeze(1).to(device)
-            labels = labels.float()
+            # Konvertieren der Form des Labels von [batch_size] nach [batch_size, 1].
+            # BCELoss erwartet, dass die Eingaben (Vorhersagen) und die Labels die gleiche Form haben.
+            # Wenn die Vorhersagen die Form [batch_size, 1] haben, müssen auch die Labels diese Form haben.
+            #z.B [1, 0, 0] shape: [3] ---> [[1], [0], [0]] shape: [3,1]          
+            labels = labels.unsqueeze(1).to(device)  # Form des Labels ändern und auf das Gerät verschieben
+            labels = labels.float()  # Labels in Gleitkommazahlen konvertieren
 
-
-            # 前向传播
+            #Forward Propagation
             outputs = model(inputs)
-            
+            #Verlust berechnen
+            #nn.BCEWithLogitsLoss() wendet intern automatisch die Sigmoid-Funktion an
             loss = criterion(outputs, labels)
-
-            # 反向传播和优化
+            #Adam
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # 记录损失值
+            # Aufgezeichnete Verlustwerte
             running_loss += loss.item()
 
-            # 计算和记录准确度
-            #nn.BCEWithLogitsLoss() 内部会自动应用 sigmoid 函数
-            predictions = (torch.sigmoid(outputs) >= 0.5).float()  # 这里使用自定义阈值
+            # Genauigkeit der Berechnungen und Aufzeichnungen
+            predictions = (torch.sigmoid(outputs) >= 0.5).float()  # Hier werden benutzerdefinierte Grenzewerte verwendet
             correct = (predictions == labels).sum().item()
             running_correct += correct
             total_samples += labels.size(0)
@@ -219,7 +216,7 @@ def train_and_visualize( epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text,
         train_losses.append(train_loss)
         train_accuracies.append(train_accuracy)
 
-        # 验证模型
+        # validierung Loop
         model.eval()
         val_running_correct = 0
         val_running_loss = 0.0
@@ -227,7 +224,7 @@ def train_and_visualize( epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text,
 
         with torch.no_grad():
             for i, data in enumerate(validation_loader):
-                inputs, labels, sample_sizes = data
+                inputs, labels, sample_size = data
                 inputs = inputs.to(device)
                 labels = labels.unsqueeze(1).to(device)
                 labels = labels.float()
@@ -247,7 +244,7 @@ def train_and_visualize( epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text,
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
 
-        # 更新损失曲线和准确度曲线
+        # Aktualisierung der Verlust- und Genauigkeitskurven
         ax_loss.clear()
         ax_loss.plot(train_losses, label='Training Loss', color='blue')
         ax_loss.plot(val_losses, label='Validation Loss', color='red')
@@ -264,7 +261,7 @@ def train_and_visualize( epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text,
         ax_acc.set_ylabel('Accuracy (%)')
         ax_acc.legend()
 
-        # 刷新画布
+        # Akutualisierung des Zeichens
         canvas.draw_idle()
         canvas.flush_events()
 
@@ -277,24 +274,23 @@ def train_and_visualize( epoch_entry, rate_entry, ax_loss, ax_acc, canvas, text,
     return trained_model
 
 
-# 定义保存模型的函数
 def save_model( ):
     
     global trained_model 
     
-    # 如果没有训练好的模型，则直接返回
+    # Wenn kein trainiertes Modell vorhanden ist, passiert nichts.
     if trained_model is None:
         print("No trained model available.")
         return
     
-    # 提示用户选择保存位置
+    # Aufforderung an den Benutzer, einen Speicherort auszuwählen
     file_path = filedialog.asksaveasfilename(defaultextension=".pth", filetypes=[("Model files", "*.pth")])
     
-    # 如果用户取消选择位置，则直接返回
+    # Wenn kein Pfad vorhanden ist, passiert nichts.
     if not file_path:
         return
     
-    # 保存模型
+    # nur Modell Parameter speichern
     torch.save(trained_model.state_dict(), file_path)
     print("Model saved successfully.")
 
@@ -302,12 +298,11 @@ def save_model( ):
 
 def load_ai_model(kern_button,KI_text):
     ai_model_path = filedialog.askopenfilename(title="Select AI Model", filetypes=[("Model files", "*.pth")])
-        # 检查是否选择了文件
+       
     if ai_model_path:
-        # 将文件路径显示在界面上，或进行其他处理
+        # Der Dateipfad wird auf der Benutzeroberfläche angezeigt, und der Button wird nach Auswahl der Datei grün.
         kern_button.configure(bg="green")
-        #print(f"Selected KI Modell: {self.ki_file_path}")
-        KI_text.delete(1.0, END)  # 清空文本框
+        KI_text.delete(1.0, END)  
         KI_text.insert(END, ai_model_path)
     return ai_model_path
 
